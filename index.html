@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shopee Caption Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col justify-between p-6">
+
+  <div class="max-w-xl w-full bg-white rounded-2xl shadow-lg p-8 mx-auto">
+    <h1 class="text-2xl font-bold mb-6 text-gray-800">Shopee Caption Generator</h1>
+    <p>On your Shopee affiliate, click on "Share to Earn" then click on "Copy Info"</p><br>
+
+    <form id="captionForm" class="space-y-4" onsubmit="return false;">
+      <div>
+        <label class="block text-gray-700 mb-2" for="promo">Product Info</label>
+        <textarea id="promo" rows="3" class="w-full px-4 py-3 border rounded-lg" required></textarea>
+      </div>
+
+      <div>
+        <span class="block text-gray-700 mb-2">Caption Length</span>
+        <div class="flex space-x-4">
+          <label class="inline-flex items-center">
+            <input type="radio" name="length" value="short" />
+            <span class="ml-2 capitalize">short</span>
+          </label>
+          <label class="inline-flex items-center">
+            <input type="radio" name="length" value="medium" checked />
+            <span class="ml-2 capitalize">medium</span>
+          </label>
+          <label class="inline-flex items-center">
+            <input type="radio" name="length" value="long" />
+            <span class="ml-2 capitalize">long</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-4">
+        <label class="inline-flex items-center">
+          <input type="checkbox" id="includeHashtag" checked />
+          <span class="ml-2">Include Hashtags</span>
+        </label>
+        <label class="inline-flex items-center">
+          <input type="checkbox" id="includeDisclaimer" checked />
+          <span class="ml-2">Include Disclaimer</span>
+        </label>
+        <label class="inline-flex items-center">
+          <input type="checkbox" id="includeEmoji" checked />
+          <span class="ml-2">Include Emoji</span>
+        </label>
+      </div>
+
+      <div class="flex space-x-4">
+        <button id="generateBtn" class="flex-1 bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 transition">
+          Generate
+        </button>
+      </div>
+    </form>
+
+    <div id="resultSection" class="mt-6 hidden">
+      <h2 class="text-xl font-semibold text-gray-800 mb-2">Generated Caption</h2>
+      <textarea id="captionOutput" rows="6" class="w-full px-4 py-2 border rounded-lg" readonly></textarea>
+      <button id="copyBtn" class="mt-3 bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 transition">Copy to Clipboard</button>
+    </div>
+  </div>
+
+<script>
+  const GEMINI_API_KEY = 'AIzaSyC-vBxVXU8GFaG3JY3cnhbiVj14Rd5PFMg'; // Replace with your key or keep for demo
+  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+  const DEFAULT_TEMPLATE = `
+Generate a Facebook post caption in Taglish for the Shopee affiliate. The info is: '{promo}'.
+Follow this exact structure:
+HOOK (attention-grabber): Start with a bold question or surprise statement in Tagalog/Taglish.
+SOLUTION: Say hello to [Product Name] –
+BENEFIT: (1–2 lines of why it's awesome)
+PRICE
+CTA: Available now on Shopee! Don't miss this budol-worthy find: [Affiliate Link]
+{disclaimer_section}
+{hashtag_section}
+{emoji_section}
+Make the caption {length}-length, Taglish, under 100 words, spaced well, and without any list markers.
+`;
+
+  const DEFAULT_HASHTAGS = `Focus on Shopee, product, budget finds, Pinoy shoppers. Exclude any reels-specific tags.
+Examples: #ShopeeFinds #MurangGadget #BudgetDrone #PinoyShopping #SulitSaShopee #BudolAlert #ShopeePH`;
+
+  async function generateCaption({ promo, length, include_hashtag, include_disclaimer, include_emoji }) {
+    const disclaimer_section = include_disclaimer
+      ? "DISCLAIMER: (This is an affiliate link. I may earn a small commission at no extra cost to you.)"
+      : "";
+    const hashtag_section = include_hashtag ? `HASHTAGS: ${DEFAULT_HASHTAGS}` : "";
+    const emoji_section = include_emoji ? "Include emojis to add flair." : "Do not include emojis.";
+
+    const prompt = DEFAULT_TEMPLATE
+      .replace('{promo}', promo)
+      .replace('{disclaimer_section}', disclaimer_section)
+      .replace('{hashtag_section}', hashtag_section)
+      .replace('{emoji_section}', emoji_section)
+      .replace('{length}', length);
+
+    const payload = {
+      contents: [{ parts: [{ text: prompt }] }]
+    };
+
+    try {
+      const response = await fetch(GEMINI_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        alert(`Gemini API error: ${errorText}`);
+        return null;
+      }
+      const data = await response.json();
+      const caption = data.candidates[0].content.parts[0].text.trim();
+      return caption;
+    } catch (error) {
+      console.error(error);
+      alert('Error connecting to Gemini API.');
+      return null;
+    }
+  }
+
+  document.getElementById('generateBtn').addEventListener('click', async () => {
+    const promo = document.getElementById('promo').value.trim();
+    if (!promo) {
+      alert('Please enter product info.');
+      return;
+    }
+
+    const length = document.querySelector('input[name="length"]:checked').value;
+    const include_hashtag = document.getElementById('includeHashtag').checked;
+    const include_disclaimer = document.getElementById('includeDisclaimer').checked;
+    const include_emoji = document.getElementById('includeEmoji').checked;
+
+    document.getElementById('generateBtn').disabled = true;
+    document.getElementById('generateBtn').textContent = 'Generating...';
+
+    const caption = await generateCaption({ promo, length, include_hashtag, include_disclaimer, include_emoji });
+
+    document.getElementById('generateBtn').disabled = false;
+    document.getElementById('generateBtn').textContent = 'Generate';
+
+    if (caption) {
+      const resultSection = document.getElementById('resultSection');
+      document.getElementById('captionOutput').value = caption;
+      resultSection.classList.remove('hidden');
+      resultSection.scrollIntoView({ behavior: 'smooth' });
+    }
+  });
+
+  document.getElementById('copyBtn').addEventListener('click', () => {
+    const captionOutput = document.getElementById('captionOutput');
+    captionOutput.select();
+    captionOutput.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(captionOutput.value).then(() => {
+      alert('Copied!');
+    });
+  });
+</script>
+
+</body>
+</html>
